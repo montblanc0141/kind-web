@@ -48,6 +48,6 @@ export default {
 
   // Set port number
   server: {
-    port: 8000 // デフォルト: 3000
+    port: 8080 // デフォルト: 3000
   }
 }
