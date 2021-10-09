@@ -52,8 +52,7 @@
                 rounded-lg
                 border-4 border-dashed
                 w-full
-                h-60
-                p-10
+                h-80
                 group
                 text-center
               "
@@ -67,14 +66,11 @@
                   items-center
                   justify-center
                 "
-                v-if="!value"
+                v-if="!value && !isCameraMode"
               >
-                <!---<svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 text-blue-400 group-hover:text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                                    </svg>-->
-                <div class="flex flex-auto max-h-48 w-2/5 mx-auto -mt-10">
+                <div class="flex flex-auto max-h-60 mx-auto -mt-10">
                   <img
-                    class="has-mask h-36 object-center"
+                    class="has-mask h-60 object-center"
                     src="https://img.freepik.com/free-vector/image-upload-concept-landing-page_52683-27130.jpg?size=338&ext=jpg"
                     alt="freepik image"
                   />
@@ -82,7 +78,7 @@
                 <p class="pointer-none text-gray-500">
                   <span class="text-sm">Drag and drop</span> files here <br />
                   or
-                  <label v-if="!value" class="text-blue-600 hover:underline">
+                  <label class="text-blue-600 hover:underline">
                     <input
                       ref="file"
                       class="hidden"
@@ -94,32 +90,102 @@
                   from your computer
                 </p>
               </div>
-              <div v-if="value" class="uploaded">
-                <img class="max-h-40 mx-auto" :src="value" />
+              <div v-else-if="value && !isCameraMode" class="uploaded">
+                <img class="max-h-70 mx-auto" :src="value" />
+              </div>
+              <div class="rounded-md" v-else-if="isCameraMode">
+                <video
+                  v-show="!imageCaptured && isCameraMode"
+                  ref="video"
+                  class="full-width"
+                  autoplay
+                />
+                <canvas
+                  v-show="imageCaptured"
+                  ref="canvas"
+                  class="full-width border-solid h-80"
+                />
               </div>
             </label>
           </div>
         </div>
-        <p class="text-sm text-gray-300 row">
-          <span class="col">File type: doc,pdf,types of images</span>
+        <div class="flex items-center justify-center w-full h-full">
+          <div
+            class="
+              flex
+              justify-center
+              items-center
+              space-x-1
+              text-sm text-gray-700
+            "
+            v-if="loading"
+          >
+            <svg
+              fill="none"
+              class="w-6 h-6 animate-spin"
+              viewBox="0 0 32 32"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                clip-rule="evenodd"
+                d="M15.165 8.53a.5.5 0 01-.404.58A7 7 0 1023 16a.5.5 0 011 0 8 8 0 11-9.416-7.874.5.5 0 01.58.404z"
+                fill="currentColor"
+                fill-rule="evenodd"
+              />
+            </svg>
+            <div>Loading ...</div>
+          </div>
+        </div>
+        <div class="row">
+          <span class="text-sm text-gray-300">File type: jpeg, png</span>
           <button
-            class="col text-red-400 rounded-full ml-2"
+            class="text-red-400 rounded-full ml-2"
             @click="deleteImage"
-            v-if="value"
+            v-if="value && !isCameraMode"
           >
             Delete Image ×
           </button>
-        </p>
-        <div>
+          <button
+            class="rounded-full border w-20"
+            v-if="hasCameraSupport && isCameraMode"
+            @click="captureImage"
+          >
+            Capture
+          </button>
+        </div>
+        <div class="grid grid-cols-8 gap-4">
+          <button class="col-span-1 w-12 h-12 rounded-full bg-gray-300">
+            <fa
+              icon="camera"
+              aria-hidden="true"
+              v-if="hasCameraSupport"
+              class="size"
+              @click="initCamera"
+            />
+          </button>
+          <button
+            class="
+              col-span-1
+              text-green-600
+              hover:underline
+              w-12
+              h-12
+              rounded-full
+              bg-gray-300
+            "
+          >
+            <input ref="file" class="hidden" type="file" @change="upload" />
+            <fa icon="upload" aria-hidden="true" class="size" />
+          </button>
           <button
             type="submit"
             class="
-              my-5
-              w-full
+              col-span-6
               flex
               justify-center
               bg-blue-500
               text-gray-100
+              w-full
               p-4
               rounded-full
               tracking-wide
@@ -133,6 +199,7 @@
               duration-300
             "
             @click="postFile"
+            :disabled="!value"
           >
             Upload
           </button>
@@ -158,13 +225,15 @@ export default Vue.extend({
   data() {
     return {
       file: null,
-      //   file: {
-      //     type: Blob,
-      //     default: null,
-      //   },
+      loading: false,
+      imageCaptured: false,
+      hasCameraSupport: true,
+      isCameraMode: false,
     }
   },
-
+  mounted() {
+    // this.initCamera()
+  },
   methods: {
     async upload(event: any) {
       const files = event.target.files || event.dataTransfer.files
@@ -201,11 +270,77 @@ export default Vue.extend({
       }
       return result
     },
+    // mounted() {
+    //   this.initCamera()
+    // },
+    beforeDestroy() {
+      if (this.hasCameraSupport) {
+        this.disableCamera()
+      }
+    },
+    initCamera() {
+      this.isCameraMode = true
+      navigator.mediaDevices
+        .getUserMedia({
+          video: true,
+        })
+        .then((stream) => {
+          ;(this.$refs.video as any).srcObject = stream
+        })
+        .catch((error) => {
+          this.hasCameraSupport = false
+        })
+    },
+    async captureImage() {
+      let video = this.$refs.video as any
+      let canvas = this.$refs.canvas as any
+      canvas.width = video.getBoundingClientRect().width
+      canvas.height = video.getBoundingClientRect().height
+      let context = canvas.getContext('2d')
+      context.drawImage(video, 0, 0, canvas.width, canvas.height)
+      this.imageCaptured = true
+      this.file = this.dataURItoBlob(canvas.toDataURL()) as any
+      const picture = await this.getBase64(this.file as any)
+      this.$emit('input', picture)
+      this.disableCamera()
+    },
+    disableCamera() {
+      this.isCameraMode = false
+      let video = this.$refs.video as any
+      video.srcObject.getVideoTracks().forEach((track: any) => {
+        track.stop()
+      })
+    },
+    dataURItoBlob(dataURI: any) {
+      // convert base64 to raw binary data held in a string
+      // doesn't handle URLEncoded DataURIs - see SO answer #6850276 for code that does this
+      var byteString = atob(dataURI.split(',')[1])
+
+      // separate out the mime component
+      var mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0]
+
+      // write the bytes of the string to an ArrayBuffer
+      var ab = new ArrayBuffer(byteString.length)
+
+      // create a view into the buffer
+      var ia = new Uint8Array(ab)
+
+      // set the bytes of the buffer to the correct values
+      for (var i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i)
+      }
+
+      // write the ArrayBuffer to a blob, and you're done
+      var blob = new Blob([ab], { type: mimeString })
+      return blob
+    },
     deleteImage() {
       this.$emit('input', null)
       this.file = null
+      this.imageCaptured = false
     },
     postFile() {
+      this.loading = true
       let formData = new FormData()
       formData.append('file', this.file as any)
       let config = {
@@ -214,12 +349,14 @@ export default Vue.extend({
         },
       }
       this.$axios
-        .post(`http://localhost:8000/files`, formData, config)
+        .post(`http://localhost:8000/files/analyze`, formData, config)
         .then((response) => {
           console.log('response: ', response)
+          this.loading = false
         })
         .catch((err) => {
           console.log('err: ', err)
+          this.loading = false
         })
     },
   },
@@ -228,7 +365,13 @@ export default Vue.extend({
 
 <style>
 .has-mask {
-  position: absolute;
-  clip: rect(10px, 150px, 130px, 10px);
+  position: relative;
+  width: 100%;
+  /* rect(<top>, <right>, <bottom>, <left>) */
+  clip: rect(50px, 300px, 200px, 10px);
+}
+
+.size {
+  font-size: 1.5em; /*1.5倍にする*/
 }
 </style>
