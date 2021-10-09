@@ -1,4 +1,4 @@
-# obon-de-hackathon
+# kindness-judgment
 
 ## Build Setup
 
